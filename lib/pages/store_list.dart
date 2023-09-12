@@ -37,6 +37,12 @@ class _StoreListState extends State<StoreList> {
     }
   }
 
+  void updateStoreList(List<Store> updatedList) {
+    setState(() {
+      storeList = updatedList;
+    });
+  }
+
   addShopToList(String storeName) async {
     int newId = await Storage.generateIdNumber(true);
     Store newStore = Store(
@@ -121,8 +127,13 @@ class _StoreListState extends State<StoreList> {
           ),
           IconButton(
             onPressed: () {
-              // TODO add options (delete all data, export data, import data, change color theme)
-              Storage.printAllSavedData();
+              Navigator.pushNamed(
+                context,
+                '/Settings',
+                arguments: {
+                  'updateStoreList': updateStoreList,
+                },
+              );
             },
             icon: const Icon(Icons.settings),
           ),
@@ -145,8 +156,6 @@ class _StoreListState extends State<StoreList> {
               heroTag: 'showAll',
               child: const Icon(Icons.list),
               onPressed: () async {
-                Storage.exportAllData();
-                setState(() {});
                 // Navigator.pushNamed(
                 //   context,
                 //   '/AllList',

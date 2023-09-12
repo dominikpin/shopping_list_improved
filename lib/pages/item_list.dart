@@ -41,6 +41,7 @@ class _ItemListState extends State<ItemList> {
   }
 
   addItemToList(String itemName) async {
+    // TODO if already on widget.list, notify user its alredy there
     Item? item = await Storage.checkIfItemExists(itemName);
     if (item != null) {
       item.storeList.add(store.id);

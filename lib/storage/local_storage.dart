@@ -250,26 +250,70 @@ class Storage {
       'stores': allJsonStores,
       'items': allJsonItems,
     };
-    try {
-      final String? directoryPath =
-          await FilePicker.platform.getDirectoryPath();
 
-      if (directoryPath != null) {
-        final directory = Directory(directoryPath);
+    final String? directoryPath = await FilePicker.platform.getDirectoryPath();
 
-        if (await directory.exists()) {
-          final file = File('${directory.path}/combined_data.json');
-          final encodedData = jsonEncode(allData);
-          await file.writeAsString(encodedData);
-          debugPrint('Combined data saved to ${file.path}');
-        } else {
-          debugPrint('Directory does not exist');
-        }
-      } else {
-        debugPrint('User canceled the file picker');
+    if (directoryPath != null) {
+      final directory = Directory(directoryPath);
+
+      if (await directory.exists()) {
+        final file = File('${directory.path}/combined_data.json');
+        final encodedData = jsonEncode(allData);
+        await file.writeAsString(encodedData);
+        debugPrint('Combined data saved to ${file.path}');
       }
-    } catch (e) {
-      debugPrint('Error saving combined data: $e');
+    }
+  }
+
+  static importNewData() async {
+    deleteAll();
+    String? filePath;
+
+    FilePickerResult? result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['json'],
+    );
+
+    if (result != null && result.files.isNotEmpty) {
+      filePath = result.files.first.path;
+    }
+
+    if (filePath != null) {
+      String jsonData = await File(filePath).readAsString();
+
+      Map<String, dynamic> data = json.decode(jsonData);
+
+      List<Store> stores = List<Store>.from(
+        data['stores'].map(
+          (storeJson) {
+            Map<String, dynamic> storeData = json.decode(storeJson);
+            return Store(
+              name: storeData['name'],
+              id: storeData['id'],
+              order: storeData['order'],
+              imageLocation: storeData['imageLocation'],
+              storeItemList: List<int>.from(storeData['storeItemList']),
+            );
+          },
+        ),
+      );
+
+      saveAllStores(stores);
+
+      List<Item> items = List<Item>.from(
+        data['items'].map(
+          (itemJson) {
+            Map<String, dynamic> itemData = json.decode(itemJson);
+            return Item(
+              name: itemData['name'],
+              id: itemData['id'],
+              isChecked: itemData['isChecked'],
+              storeList: List<int>.from(itemData['storeList']),
+            );
+          },
+        ),
+      );
+      saveAllItems(items);
     }
   }
 

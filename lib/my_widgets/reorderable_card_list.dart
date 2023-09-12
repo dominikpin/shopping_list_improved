@@ -158,6 +158,7 @@ class _ReorderableCardListState<T> extends State<ReorderableCardList> {
                 ),
         ),
         PopupMenuButton<String>(
+          color: Colors.white,
           itemBuilder: (BuildContext context) {
             return <PopupMenuEntry<String>>[
               const PopupMenuItem<String>(
@@ -209,8 +210,19 @@ class _ReorderableCardListState<T> extends State<ReorderableCardList> {
               ),
     ];
 
+    cards.add(
+      Card(
+        color: Colors.grey[900],
+        key: const Key('emptyCard'),
+        child: const SizedBox(height: 150),
+      ),
+    );
+
     Widget proxyDecorator(
         Widget child, int index, Animation<double> animation) {
+      if (index == cards.length - 1) {
+        return child;
+      }
       return AnimatedBuilder(
         animation: animation,
         builder: (BuildContext context, Widget? child) {
@@ -221,8 +233,10 @@ class _ReorderableCardListState<T> extends State<ReorderableCardList> {
             scale: scale,
             child: Card(
               elevation: elevation,
-              color: cards[index].color,
-              child: cards[index].child,
+              color: index < cards.length - 1
+                  ? cards[index].color
+                  : Colors.transparent,
+              child: index < cards.length - 1 ? cards[index].child : null,
             ),
           );
         },
@@ -233,30 +247,43 @@ class _ReorderableCardListState<T> extends State<ReorderableCardList> {
     return ReorderableListView(
       proxyDecorator: proxyDecorator,
       onReorder: (int oldIndex, int newIndex) {
-        setState(
-          () {
-            if (oldIndex < newIndex) {
-              newIndex -= 1;
-            }
-            final item = widget.list.removeAt(oldIndex);
-            widget.list.insert(newIndex, item);
-            List<int> idList = [];
-            for (int i = 0; i < widget.list.length; i++) {
-              if (widget.list[i] is Store) {
-                (widget.list[i] as Store).order = i;
-                Storage.saveStore(widget.list[i]);
-              } else if (widget.list[i] is Item) {
-                idList.add(widget.list[i].id);
+        debugPrint('$oldIndex');
+        if (oldIndex < cards.length - 1) {
+          setState(
+            () {
+              if (newIndex == cards.length) {
+                newIndex -= 1;
               }
-            }
-            if (widget.list.isNotEmpty && widget.list[0] is Item) {
-              widget.store.storeItemList = idList;
-              Storage.saveStore(widget.store);
-            }
-          },
-        );
+              if (oldIndex < newIndex) {
+                newIndex -= 1;
+              }
+              final item = widget.list.removeAt(oldIndex);
+              widget.list.insert(newIndex, item);
+              List<int> idList = [];
+              for (int i = 0; i < widget.list.length; i++) {
+                if (widget.list[i] is Store) {
+                  (widget.list[i] as Store).order = i;
+                  Storage.saveStore(widget.list[i]);
+                } else if (widget.list[i] is Item) {
+                  idList.add(widget.list[i].id);
+                }
+              }
+              if (widget.list.isNotEmpty && widget.list[0] is Item) {
+                widget.store.storeItemList = idList;
+                Storage.saveStore(widget.store);
+              }
+            },
+          );
+        }
       },
-      children: cards,
+      children: [
+        for (int index = 0; index < cards.length - 1; index++) cards[index],
+        GestureDetector(
+          key: const Key('emptyCard'),
+          onLongPress: () {},
+          child: cards.last,
+        ),
+      ],
     );
   }
 }
