@@ -1,8 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_keyboard_visibility/flutter_keyboard_visibility.dart';
 
 import '../classes/item.dart';
 import '../classes/store.dart';
+import '../my_widgets/item_card.dart';
 import '../my_widgets/reorderable_card_list.dart';
 import '../storage/local_storage.dart';
 
@@ -19,6 +23,30 @@ class _ItemListState extends State<ItemList> {
   final textController = TextEditingController();
   late Store store;
   double progress = 0;
+  bool alphaOrder = false;
+  bool keyboardOpen = false;
+  late StreamSubscription<bool> keyboardSubscription;
+
+  @override
+  void initState() {
+    super.initState();
+
+    var keyboardVisibilityController = KeyboardVisibilityController();
+
+    keyboardSubscription = keyboardVisibilityController.onChange.listen(
+      (bool visible) {
+        debugPrint(visible ? "UP" : "DOWN");
+        keyboardOpen = visible;
+        setState(() {});
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    keyboardSubscription.cancel();
+    super.dispose();
+  }
 
   @override
   void didChangeDependencies() async {
@@ -28,22 +56,30 @@ class _ItemListState extends State<ItemList> {
     storeName = store.name;
     List<int> idItemList = store.storeItemList;
     itemList = await Storage.loadAllItems(idItemList);
+    alphaOrder = await Storage.loadAlphaOrder(2);
     updateProgressBar();
     setState(() {});
   }
 
-  printItemList() {
-    for (var item in itemList) {
-      {
-        debugPrint('${item.name}, ${item.id}, ${item.isChecked}');
-      }
-    }
+  void showSnackbar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        duration: const Duration(seconds: 5),
+      ),
+    );
   }
 
   addItemToList(String itemName) async {
-    // TODO if already on widget.list, notify user its alredy there
     Item? item = await Storage.checkIfItemExists(itemName);
     if (item != null) {
+      if (store.storeItemList.contains(item.id)) {
+        showSnackbar(
+            'This item is already on your ${store.name} shopping list.');
+        textController.clear();
+
+        return;
+      }
       item.storeList.add(store.id);
       itemList.add(item);
       store.storeItemList.add(item.id);
@@ -130,7 +166,6 @@ class _ItemListState extends State<ItemList> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey[900],
       appBar: AppBar(
         title: Text(storeName),
         centerTitle: true,
@@ -140,10 +175,18 @@ class _ItemListState extends State<ItemList> {
             visible: kDebugMode,
             child: IconButton(
               onPressed: () {
-                printItemList();
+                Storage.printAllSavedData();
               },
               icon: const Icon(Icons.print),
             ),
+          ),
+          Switch(
+            onChanged: (bool value) async {
+              await Storage.saveAlphaOrder(value, 2);
+              alphaOrder = value;
+              setState(() {});
+            },
+            value: alphaOrder,
           ),
         ],
       ),
@@ -153,14 +196,6 @@ class _ItemListState extends State<ItemList> {
             visible: itemList.isNotEmpty,
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              decoration: BoxDecoration(
-                color: Colors.grey[800],
-                border: const Border(
-                  bottom: BorderSide(
-                    color: Colors.grey,
-                  ),
-                ),
-              ),
               child: SizedBox(
                 height: 20,
                 child: Stack(
@@ -169,7 +204,6 @@ class _ItemListState extends State<ItemList> {
                       borderRadius: BorderRadius.circular(20),
                       child: LinearProgressIndicator(
                         value: progress,
-                        backgroundColor: Colors.grey[700],
                         valueColor: const AlwaysStoppedAnimation<Color>(
                           Colors.green,
                         ),
@@ -184,7 +218,6 @@ class _ItemListState extends State<ItemList> {
                         '${(progress * 100).toInt()}%',
                         textAlign: TextAlign.center,
                         style: const TextStyle(
-                          color: Colors.white,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
@@ -194,24 +227,58 @@ class _ItemListState extends State<ItemList> {
               ),
             ),
           ),
-          Expanded(
-            child: ReorderableCardList(
-              list: itemList,
-              isChangeNameSelectedList:
-                  List.generate(itemList.length, (index) => false),
-              store: store,
-              updateProgressBar: updateProgressBar,
-            ),
-          ),
+          alphaOrder
+              ? Expanded(
+                  child: ListView.builder(
+                    itemCount: itemList.length + 1,
+                    itemBuilder: (context, index) {
+                      if (index < itemList.length) {
+                        itemList.sort(
+                          (a, b) {
+                            if (a.isChecked && !b.isChecked) {
+                              return 1;
+                            } else if (!a.isChecked && b.isChecked) {
+                              return -1;
+                            } else {
+                              return a.name
+                                  .toLowerCase()
+                                  .compareTo(b.name.toLowerCase());
+                            }
+                          },
+                        );
+                        return ItemCard(
+                          list: itemList,
+                          store: store,
+                          index: index,
+                          updateProgressBar: updateProgressBar,
+                        );
+                      } else {
+                        return Card(
+                          color: Colors.grey[850],
+                          child: const SizedBox(height: 150),
+                        );
+                      }
+                    },
+                  ),
+                )
+              : Expanded(
+                  child: ReorderableCardList(
+                    list: itemList,
+                    store: store,
+                    updateProgressBarOrRemoveStore: updateProgressBar,
+                  ),
+                ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        heroTag: 'addItem',
-        child: const Icon(Icons.add),
-        onPressed: () {
-          showNewItemSheet(context);
-        },
-      ),
+      floatingActionButton: keyboardOpen
+          ? const SizedBox()
+          : FloatingActionButton(
+              heroTag: 'addItem',
+              child: const Icon(Icons.add),
+              onPressed: () {
+                showNewItemSheet(context);
+              },
+            ),
     );
   }
 }

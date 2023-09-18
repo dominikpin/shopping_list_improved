@@ -1,7 +1,8 @@
-import 'dart:io';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:shopping_list/my_widgets/item_card.dart';
+import 'package:shopping_list/my_widgets/store_card.dart';
 
 import '../classes/item.dart';
 import '../classes/store.dart';
@@ -9,210 +10,52 @@ import '../storage/local_storage.dart';
 
 class ReorderableCardList<T> extends StatefulWidget {
   final List<T> list;
-  final List<bool> isChangeNameSelectedList;
   final Store store;
-  final Function updateProgressBar;
+  final Function updateProgressBarOrRemoveStore;
+
   const ReorderableCardList({
     super.key,
     required this.list,
-    required this.isChangeNameSelectedList,
     required this.store,
-    required this.updateProgressBar,
+    required this.updateProgressBarOrRemoveStore,
   });
   @override
   State<ReorderableCardList> createState() => _ReorderableCardListState();
 }
 
 class _ReorderableCardListState<T> extends State<ReorderableCardList> {
-  Widget buildStoreCard(int index) {
-    return Row(
-      children: [
-        Expanded(
-          child: ListTile(
-            onTap: () {
-              Navigator.pushNamed(
-                context,
-                '/ItemList',
-                arguments: {
-                  'store': widget.list[index],
-                },
-              );
-            },
-            title: widget.isChangeNameSelectedList[index]
-                ? TextField(
-                    onSubmitted: (newName) {
-                      widget.list[index].name = newName;
-                      Storage.saveStore(widget.list[index]);
-                      widget.isChangeNameSelectedList[index] = false;
-                      setState(() {});
-                    },
-                    autofocus: true,
-                    decoration: InputDecoration(
-                      hintText: '${widget.list[index].name}',
-                    ),
-                  )
-                : Text(widget.list[index].name),
-            leading: widget.list[index].imageLocation.isNotEmpty
-                ? Container(
-                    margin: const EdgeInsets.all(3),
-                    child: File(widget.list[index].imageLocation).existsSync()
-                        ? Image.file(File(widget.list[index].imageLocation))
-                        : const Icon(Icons.shopping_cart_rounded),
-                  )
-                : const Icon(Icons.shopping_cart_rounded),
-          ),
-        ),
-        PopupMenuButton<String>(
-          itemBuilder: (BuildContext context) {
-            return <PopupMenuEntry<String>>[
-              const PopupMenuItem<String>(
-                value: '1',
-                child: Text('Change name'),
-              ),
-              const PopupMenuItem<String>(
-                value: '2',
-                child: Text('Add/change image'),
-              ),
-              const PopupMenuItem<String>(
-                value: '3',
-                child: Text('Delete'),
-              ),
-            ];
-          },
-          onSelected: (String value) async {
-            switch (value) {
-              case '1':
-                widget.isChangeNameSelectedList[index] = true;
-                setState(() {});
-                break;
-              case '2':
-                await Storage.saveStoreImage(widget.list[index]);
-                setState(() {});
-                break;
-              case '3':
-                Storage.deleteStoreOrItem(
-                    true, widget.list.elementAt(index).id, 0);
-                widget.list.removeAt(index);
-                setState(() {});
-                break;
-            }
-          },
-        ),
-      ],
-    );
-  }
-
-  Widget buildItemCard(int index, Store store) {
-    return Row(
-      children: [
-        Transform.scale(
-          scale: 1.5,
-          child: Checkbox(
-            value: widget.list[index].isChecked,
-            onChanged: (value) {
-              setState(
-                () {
-                  widget.list[index].isChecked = value!;
-                  Storage.saveItem(widget.list[index]);
-                  widget.updateProgressBar();
-                },
-              );
-            },
-            fillColor:
-                MaterialStateColor.resolveWith((states) => Colors.grey[900]!),
-            side: const BorderSide(
-              width: 2.0,
-              style: BorderStyle.solid,
-              color: Colors.black,
-            ),
-          ),
-        ),
-        Expanded(
-          child: widget.isChangeNameSelectedList[index]
-              ? TextField(
-                  onSubmitted: (newName) {
-                    // TODO check if newName already exists
-                    widget.list[index].name = newName;
-                    Storage.saveItem(widget.list[index]);
-                    widget.isChangeNameSelectedList[index] = false;
-                    setState(() {});
-                  },
-                  autofocus: true,
-                  decoration: InputDecoration(
-                    hintText: '${widget.list[index].name}',
-                  ),
-                )
-              : Text(
-                  widget.list[index].name,
-                  style: !widget.list[index].isChecked
-                      ? const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                        )
-                      : TextStyle(
-                          color: Colors.grey[700],
-                          fontStyle: FontStyle.italic,
-                          decoration: TextDecoration.lineThrough,
-                          decorationThickness: 3.0,
-                        ),
-                ),
-        ),
-        PopupMenuButton<String>(
-          color: Colors.white,
-          itemBuilder: (BuildContext context) {
-            return <PopupMenuEntry<String>>[
-              const PopupMenuItem<String>(
-                value: '1',
-                child: Text('Change name'),
-              ),
-              const PopupMenuItem<String>(
-                value: '2',
-                child: Text('Delete'),
-              ),
-            ];
-          },
-          onSelected: (String value) async {
-            switch (value) {
-              case '1':
-                widget.isChangeNameSelectedList[index] = true;
-                setState(() {});
-                break;
-              case '2':
-                Storage.deleteStoreOrItem(
-                    false, widget.list[index].id, widget.store.id);
-                widget.store.storeItemList
-                    .removeWhere((element) => element == widget.list[index].id);
-                widget.list.removeAt(index);
-                widget.updateProgressBar();
-                setState(() {});
-                break;
-            }
-          },
-        ),
-      ],
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
-    final List<Card> cards = <Card>[
+    if (widget.list.isEmpty || widget.list[0] is Store) {
+      widget.list.sort((a, b) => a.order.compareTo(b.order));
+    } else {
+      widget.list.sort((a, b) {
+        final indexA = widget.store.storeItemList.indexOf(a.id);
+        final indexB = widget.store.storeItemList.indexOf(b.id);
+        return indexA.compareTo(indexB);
+      });
+    }
+    final List<Widget> cards = <Widget>[
       for (int index = 0; index < widget.list.length; index++)
         widget.list[index] is Store
-            ? Card(
-                color: Colors.grey[350],
+            ? StoreCard(
                 key: Key('$index'),
-                child: buildStoreCard(index),
+                store: widget.list[index],
+                index: index,
+                removeStore: widget.updateProgressBarOrRemoveStore,
               )
-            : Card(
-                color: Colors.grey[900],
+            : ItemCard(
                 key: Key('$index'),
-                child: buildItemCard(index, widget.store),
-              ),
+                list: widget.list as List<Item>,
+                store: widget.store,
+                index: index,
+                updateProgressBar: widget.updateProgressBarOrRemoveStore,
+              )
     ];
 
     cards.add(
       Card(
-        color: Colors.grey[900],
+        color: Colors.grey[850],
         key: const Key('emptyCard'),
         child: const SizedBox(height: 150),
       ),
@@ -227,17 +70,10 @@ class _ReorderableCardListState<T> extends State<ReorderableCardList> {
         animation: animation,
         builder: (BuildContext context, Widget? child) {
           final double animValue = Curves.easeInOut.transform(animation.value);
-          final double elevation = lerpDouble(1, 6, animValue)!;
           final double scale = lerpDouble(1, 1.02, animValue)!;
           return Transform.scale(
             scale: scale,
-            child: Card(
-              elevation: elevation,
-              color: index < cards.length - 1
-                  ? cards[index].color
-                  : Colors.transparent,
-              child: index < cards.length - 1 ? cards[index].child : null,
-            ),
+            child: child,
           );
         },
         child: child,

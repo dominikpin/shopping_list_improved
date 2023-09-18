@@ -1,8 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_keyboard_visibility/flutter_keyboard_visibility.dart';
 
 import '../classes/store.dart';
 import '../my_widgets/reorderable_card_list.dart';
+import '../my_widgets/store_card.dart';
 import '../storage/local_storage.dart';
 
 class StoreList extends StatefulWidget {
@@ -15,32 +19,40 @@ class StoreList extends StatefulWidget {
 class _StoreListState extends State<StoreList> {
   List<Store> storeList = [];
   final textController = TextEditingController();
+  bool alphaOrder = false;
+  bool keyboardOpen = false;
+  late StreamSubscription<bool> keyboardSubscription;
 
   @override
   void initState() {
     super.initState();
-    loadStores();
+    loadStoresAndAlphaOrder();
+    var keyboardVisibilityController = KeyboardVisibilityController();
+
+    keyboardSubscription = keyboardVisibilityController.onChange.listen(
+      (bool visible) {
+        debugPrint(visible ? "UP" : "DOWN");
+        keyboardOpen = visible;
+        setState(() {});
+      },
+    );
   }
 
-  Future<void> loadStores() async {
+  @override
+  void dispose() {
+    keyboardSubscription.cancel();
+    super.dispose();
+  }
+
+  Future<void> loadStoresAndAlphaOrder() async {
     storeList = await Storage.loadAllStores();
+    alphaOrder = await Storage.loadAlphaOrder(1);
     setState(() {});
   }
 
-  printStoreList() {
-    for (var store in storeList) {
-      {
-        debugPrint(
-          'Store name: ${store.name}, id: ${store.id}, order: ${store.order}, Store IMGpath: ${store.imageLocation} Store items: ${store.storeItemList.map((item) => item).join(', ')}',
-        );
-      }
-    }
-  }
-
   void updateStoreList(List<Store> updatedList) {
-    setState(() {
-      storeList = updatedList;
-    });
+    storeList = updatedList;
+    setState(() {});
   }
 
   addShopToList(String storeName) async {
@@ -55,6 +67,12 @@ class _StoreListState extends State<StoreList> {
     storeList.add(newStore);
     Storage.saveStore(newStore);
     textController.clear();
+    setState(() {});
+  }
+
+  removeStore(int index) async {
+    await Storage.deleteStoreOrItem(true, storeList.elementAt(index).id, 0);
+    storeList.removeAt(index);
     setState(() {});
   }
 
@@ -105,13 +123,22 @@ class _StoreListState extends State<StoreList> {
     );
   }
 
-  void emptyFunction() {}
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey[900],
       appBar: AppBar(
+        leading: IconButton(
+          onPressed: () {
+            Navigator.pushNamed(
+              context,
+              '/Settings',
+              arguments: {
+                'updateStoreList': updateStoreList,
+              },
+            );
+          },
+          icon: const Icon(Icons.settings),
+        ),
         title: const Text('Store list'),
         centerTitle: true,
         backgroundColor: Colors.blue[800],
@@ -120,66 +147,55 @@ class _StoreListState extends State<StoreList> {
             visible: kDebugMode,
             child: IconButton(
               onPressed: () {
-                printStoreList();
+                Storage.printAllSavedData();
               },
               icon: const Icon(Icons.print),
             ),
           ),
-          IconButton(
-            onPressed: () {
-              Navigator.pushNamed(
-                context,
-                '/Settings',
-                arguments: {
-                  'updateStoreList': updateStoreList,
-                },
-              );
+          Switch(
+            onChanged: (bool value) async {
+              await Storage.saveAlphaOrder(value, 1);
+              alphaOrder = value;
+              setState(() {});
             },
-            icon: const Icon(Icons.settings),
+            value: alphaOrder,
           ),
         ],
       ),
-      body: ReorderableCardList(
-        list: storeList,
-        isChangeNameSelectedList:
-            List.generate(storeList.length, (index) => false),
-        store: Store(
-            name: '', id: 0, order: 0, imageLocation: '', storeItemList: []),
-        updateProgressBar: emptyFunction,
-      ),
-      floatingActionButton: Stack(
-        children: [
-          Positioned(
-            bottom: 20.0,
-            left: 50.0,
-            child: FloatingActionButton(
-              heroTag: 'showAll',
-              child: const Icon(Icons.list),
-              onPressed: () async {
-                // Navigator.pushNamed(
-                //   context,
-                //   '/AllList',
-                //   arguments: {
-                //     'storeList': storeList,
-                //     'saveShopList': saveShopList,
-                //   },
-                // );
+      body: alphaOrder
+          ? ListView.builder(
+              itemCount: storeList.length + 1,
+              itemBuilder: (context, index) {
+                if (index < storeList.length) {
+                  storeList.sort((a, b) =>
+                      a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+                  return StoreCard(
+                    store: storeList[index],
+                    index: index,
+                    removeStore: removeStore,
+                  );
+                } else {
+                  return Card(
+                    color: Colors.grey[850],
+                    child: const SizedBox(height: 150),
+                  );
+                }
               },
+            )
+          : ReorderableCardList(
+              list: storeList,
+              store: Store.empty(),
+              updateProgressBarOrRemoveStore: removeStore,
             ),
-          ),
-          Positioned(
-            bottom: 20.0,
-            right: 20.0,
-            child: FloatingActionButton(
+      floatingActionButton: keyboardOpen
+          ? const SizedBox()
+          : FloatingActionButton(
               heroTag: 'addStore',
               child: const Icon(Icons.add),
               onPressed: () {
                 showNewStoreSheet(context);
               },
             ),
-          ),
-        ],
-      ),
     );
   }
 }

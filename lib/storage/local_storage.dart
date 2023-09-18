@@ -14,6 +14,21 @@ import '../classes/store.dart';
 class Storage {
   static const String itemKeyPrefix = 'item_';
   static const String storeKeyPrefix = 'store_';
+  static const String alphaOrderKey = 'alphaOrder';
+
+  static Future<void> saveAlphaOrder(bool alphaOrder, int number) async {
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.setString('$alphaOrderKey$number', alphaOrder.toString());
+  }
+
+  static Future<bool> loadAlphaOrder(int number) async {
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    String? alphaOrderString = prefs.getString('$alphaOrderKey$number');
+    if (alphaOrderString == null) {
+      return false;
+    }
+    return alphaOrderString.toLowerCase() == 'true';
+  }
 
   static Future<void> saveAllStores(List<Store> stores) async {
     for (Store store in stores) {
@@ -42,7 +57,6 @@ class Storage {
       int dirLength = directory.path.length;
       lastId = int.parse(
           store.imageLocation.substring(dirLength + 9, dirLength + 9 + 8));
-      debugPrint(lastId.toString());
       if (File(store.imageLocation).existsSync()) {
         File(store.imageLocation).deleteSync();
       }
@@ -210,110 +224,139 @@ class Storage {
   }
 
   static exportAllData() async {
-    List<String> allJsonItems = [];
-    List<String> allJsonStores = [];
+    try {
+      List<String> allJsonItems = [];
+      List<String> allJsonStores = [];
+      List<String> allAlphaOrder = [];
 
-    final prefs = await SharedPreferences.getInstance();
-    final keys = prefs.getKeys().where(
-          (key) =>
-              key.startsWith(storeKeyPrefix) || key.startsWith(itemKeyPrefix),
-        );
-    for (String key in keys) {
-      if (key.contains(itemKeyPrefix)) {
-        Item? item = await loadItem(key);
-        if (item != null) {
-          final value = {
-            'name': item.name,
-            'id': item.id,
-            'isChecked': item.isChecked,
-            'storeList': item.storeList,
-          };
-          final valueJson = json.encode(value);
-          allJsonItems.add(valueJson);
-        }
-      } else {
-        Store? store = await loadStore(key);
-        if (store != null) {
-          final value = {
-            'name': store.name,
-            'id': store.id,
-            'order': store.order,
-            'imageLocation': store.imageLocation,
-            'storeItemList': store.storeItemList
-          };
-          final valueJson = json.encode(value);
-          allJsonStores.add(valueJson);
+      bool alphaOrder1 = await loadAlphaOrder(1);
+      allAlphaOrder.add(alphaOrder1.toString());
+      bool alphaOrder2 = await loadAlphaOrder(2);
+      allAlphaOrder.add(alphaOrder2.toString());
+
+      final prefs = await SharedPreferences.getInstance();
+      final keys = prefs.getKeys().where(
+            (key) =>
+                key.startsWith(storeKeyPrefix) || key.startsWith(itemKeyPrefix),
+          );
+      for (String key in keys) {
+        if (key.contains(itemKeyPrefix)) {
+          Item? item = await loadItem(key);
+          if (item != null) {
+            final value = {
+              'name': item.name,
+              'id': item.id,
+              'isChecked': item.isChecked,
+              'storeList': item.storeList,
+            };
+            final valueJson = json.encode(value);
+            allJsonItems.add(valueJson);
+          }
+        } else {
+          Store? store = await loadStore(key);
+          if (store != null) {
+            final value = {
+              'name': store.name,
+              'id': store.id,
+              'order': store.order,
+              'imageLocation': store.imageLocation,
+              'storeItemList': store.storeItemList
+            };
+            final valueJson = json.encode(value);
+            allJsonStores.add(valueJson);
+          }
         }
       }
-    }
-    final allData = {
-      'stores': allJsonStores,
-      'items': allJsonItems,
-    };
+      final allData = {
+        'stores': allJsonStores,
+        'items': allJsonItems,
+        'alphaOrder': allAlphaOrder,
+      };
 
-    final String? directoryPath = await FilePicker.platform.getDirectoryPath();
+      final String? directoryPath =
+          await FilePicker.platform.getDirectoryPath();
 
-    if (directoryPath != null) {
-      final directory = Directory(directoryPath);
+      if (directoryPath != null) {
+        final directory = Directory(directoryPath);
 
-      if (await directory.exists()) {
-        final file = File('${directory.path}/combined_data.json');
-        final encodedData = jsonEncode(allData);
-        await file.writeAsString(encodedData);
-        debugPrint('Combined data saved to ${file.path}');
+        if (await directory.exists()) {
+          final file = File(
+              '${directory.path}/combined_data${generateRandomIdNumber(8)}.json');
+          final encodedData = jsonEncode(allData);
+          await file.writeAsString(encodedData);
+          debugPrint('Combined data saved to ${file.path}');
+        }
       }
+    } catch (e) {
+      debugPrint('ERROR');
     }
   }
 
   static importNewData() async {
-    deleteAll();
-    String? filePath;
+    try {
+      deleteAll();
+      String? filePath;
 
-    FilePickerResult? result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['json'],
-    );
-
-    if (result != null && result.files.isNotEmpty) {
-      filePath = result.files.first.path;
-    }
-
-    if (filePath != null) {
-      String jsonData = await File(filePath).readAsString();
-
-      Map<String, dynamic> data = json.decode(jsonData);
-
-      List<Store> stores = List<Store>.from(
-        data['stores'].map(
-          (storeJson) {
-            Map<String, dynamic> storeData = json.decode(storeJson);
-            return Store(
-              name: storeData['name'],
-              id: storeData['id'],
-              order: storeData['order'],
-              imageLocation: storeData['imageLocation'],
-              storeItemList: List<int>.from(storeData['storeItemList']),
-            );
-          },
-        ),
+      FilePickerResult? result;
+      result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['json'],
       );
 
-      saveAllStores(stores);
+      if (result != null && result.files.isNotEmpty) {
+        filePath = result.files.first.path;
+      }
 
-      List<Item> items = List<Item>.from(
-        data['items'].map(
-          (itemJson) {
-            Map<String, dynamic> itemData = json.decode(itemJson);
-            return Item(
-              name: itemData['name'],
-              id: itemData['id'],
-              isChecked: itemData['isChecked'],
-              storeList: List<int>.from(itemData['storeList']),
-            );
-          },
-        ),
-      );
-      saveAllItems(items);
+      if (filePath != null) {
+        String jsonData = await File(filePath).readAsString();
+
+        Map<String, dynamic> data = json.decode(jsonData);
+
+        List<Store> stores = List<Store>.from(
+          data['stores'].map(
+            (storeJson) {
+              Map<String, dynamic> storeData = json.decode(storeJson);
+              return Store(
+                name: storeData['name'],
+                id: storeData['id'],
+                order: storeData['order'],
+                imageLocation: storeData['imageLocation'],
+                storeItemList: List<int>.from(storeData['storeItemList']),
+              );
+            },
+          ),
+        );
+
+        saveAllStores(stores);
+
+        List<Item> items = List<Item>.from(
+          data['items'].map(
+            (itemJson) {
+              Map<String, dynamic> itemData = json.decode(itemJson);
+              return Item(
+                name: itemData['name'],
+                id: itemData['id'],
+                isChecked: itemData['isChecked'],
+                storeList: List<int>.from(itemData['storeList']),
+              );
+            },
+          ),
+        );
+        saveAllItems(items);
+
+        List<bool> alphaOrderList = List<bool>.from(
+          data['alphaOrder'].map(
+            (alphaOrderJson) {
+              bool alphaOrderData = json.decode(alphaOrderJson);
+              return alphaOrderData;
+            },
+          ),
+        );
+        saveAlphaOrder(alphaOrderList[0], 1);
+        saveAlphaOrder(alphaOrderList[1], 2);
+      }
+    } catch (e) {
+      debugPrint('Error');
     }
   }
 
@@ -325,7 +368,7 @@ class Storage {
       Store? store = await loadStore('$storeKeyPrefix$storeId');
       if (item != null) {
         item.storeList.remove(storeId);
-        Storage.saveItem(item);
+        await Storage.saveItem(item);
         if (item.storeList.isEmpty) {
           await prefs.remove('$itemKeyPrefix$id');
         }
@@ -355,7 +398,9 @@ class Storage {
     final prefs = await SharedPreferences.getInstance();
     final keys = prefs.getKeys().where(
           (key) =>
-              key.startsWith(storeKeyPrefix) || key.startsWith(itemKeyPrefix),
+              key.startsWith(storeKeyPrefix) ||
+              key.startsWith(itemKeyPrefix) ||
+              key.startsWith(alphaOrderKey),
         );
     for (final key in keys) {
       if (key.contains(storeKeyPrefix)) {

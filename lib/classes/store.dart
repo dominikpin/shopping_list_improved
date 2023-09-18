@@ -12,4 +12,11 @@ class Store {
     required this.imageLocation,
     required this.storeItemList,
   });
+
+  Store.empty()
+      : name = '',
+        id = 0,
+        order = 0,
+        imageLocation = '',
+        storeItemList = [];
 }
