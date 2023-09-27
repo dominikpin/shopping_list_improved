@@ -31,7 +31,6 @@ class _StoreListState extends State<StoreList> {
 
     keyboardSubscription = keyboardVisibilityController.onChange.listen(
       (bool visible) {
-        debugPrint(visible ? "UP" : "DOWN");
         keyboardOpen = visible;
         setState(() {});
       },
@@ -99,6 +98,7 @@ class _StoreListState extends State<StoreList> {
                 controller: textController,
                 textAlign: TextAlign.center,
                 decoration: const InputDecoration(
+                  hintText: 'Name of new store',
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.vertical(
                       top: Radius.circular(15.0),
@@ -137,7 +137,7 @@ class _StoreListState extends State<StoreList> {
               },
             );
           },
-          icon: const Icon(Icons.settings),
+          icon: const Icon(Icons.settings, semanticLabel: 'Settings'),
         ),
         title: const Text('Store list'),
         centerTitle: true,
@@ -152,13 +152,21 @@ class _StoreListState extends State<StoreList> {
               icon: const Icon(Icons.print),
             ),
           ),
-          Switch(
-            onChanged: (bool value) async {
-              await Storage.saveAlphaOrder(value, 1);
-              alphaOrder = value;
-              setState(() {});
-            },
-            value: alphaOrder,
+          Semantics(
+            container: true,
+            label: 'Alphabetical switch',
+            checked: alphaOrder,
+            value: 'Feature is ${alphaOrder ? 'enabled' : 'disabled'}',
+            increasedValue: 'Tap to disable feature',
+            decreasedValue: 'Tap to enable feature',
+            child: Switch(
+              onChanged: (bool value) async {
+                await Storage.saveAlphaOrder(value, 1);
+                alphaOrder = value;
+                setState(() {});
+              },
+              value: alphaOrder,
+            ),
           ),
         ],
       ),
@@ -191,7 +199,7 @@ class _StoreListState extends State<StoreList> {
           ? const SizedBox()
           : FloatingActionButton(
               heroTag: 'addStore',
-              child: const Icon(Icons.add),
+              child: const Icon(Icons.add, semanticLabel: 'Add new store'),
               onPressed: () {
                 showNewStoreSheet(context);
               },

@@ -6,6 +6,7 @@ import 'pages/store_list.dart';
 void main() {
   runApp(
     MaterialApp(
+      showSemanticsDebugger: true,
       title: 'Shopping list',
       theme: ThemeData.dark(),
       initialRoute: '/',

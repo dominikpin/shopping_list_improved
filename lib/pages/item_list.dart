@@ -126,6 +126,7 @@ class _ItemListState extends State<ItemList> {
                 controller: textController,
                 textAlign: TextAlign.center,
                 decoration: const InputDecoration(
+                  hintText: 'Name of new item',
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.vertical(
                       top: Radius.circular(15.0),
@@ -180,13 +181,21 @@ class _ItemListState extends State<ItemList> {
               icon: const Icon(Icons.print),
             ),
           ),
-          Switch(
-            onChanged: (bool value) async {
-              await Storage.saveAlphaOrder(value, 2);
-              alphaOrder = value;
-              setState(() {});
-            },
-            value: alphaOrder,
+          Semantics(
+            container: true,
+            label: 'Alphabetical switch',
+            checked: alphaOrder,
+            value: 'Feature is ${alphaOrder ? 'enabled' : 'disabled'}',
+            increasedValue: 'Tap to disable feature',
+            decreasedValue: 'Tap to enable feature',
+            child: Switch(
+              onChanged: (bool value) async {
+                await Storage.saveAlphaOrder(value, 2);
+                alphaOrder = value;
+                setState(() {});
+              },
+              value: alphaOrder,
+            ),
           ),
         ],
       ),
@@ -274,7 +283,7 @@ class _ItemListState extends State<ItemList> {
           ? const SizedBox()
           : FloatingActionButton(
               heroTag: 'addItem',
-              child: const Icon(Icons.add),
+              child: const Icon(Icons.add, semanticLabel: 'Add new item'),
               onPressed: () {
                 showNewItemSheet(context);
               },

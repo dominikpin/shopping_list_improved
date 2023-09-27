@@ -42,6 +42,7 @@ class _ItemCard extends State<ItemCard> {
           Transform.scale(
             scale: 1.5,
             child: Checkbox(
+              semanticLabel: 'Checkbox for ${widget.list[widget.index].name}',
               value: widget.list[widget.index].isChecked,
               onChanged: (value) {
                 setState(() {

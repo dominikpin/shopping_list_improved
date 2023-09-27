@@ -55,8 +55,10 @@ class _ReorderableCardListState<T> extends State<ReorderableCardList> {
 
     cards.add(
       Card(
+        elevation: 0,
         color: Colors.grey[850],
         key: const Key('emptyCard'),
+        semanticContainer: false,
         child: const SizedBox(height: 150),
       ),
     );
@@ -85,36 +87,34 @@ class _ReorderableCardListState<T> extends State<ReorderableCardList> {
       onReorder: (int oldIndex, int newIndex) {
         debugPrint('$oldIndex');
         if (oldIndex < cards.length - 1) {
-          setState(
-            () {
-              if (newIndex == cards.length) {
-                newIndex -= 1;
-              }
-              if (oldIndex < newIndex) {
-                newIndex -= 1;
-              }
-              final item = widget.list.removeAt(oldIndex);
-              widget.list.insert(newIndex, item);
-              List<int> idList = [];
-              for (int i = 0; i < widget.list.length; i++) {
-                if (widget.list[i] is Store) {
-                  (widget.list[i] as Store).order = i;
-                  Storage.saveStore(widget.list[i]);
-                } else if (widget.list[i] is Item) {
-                  idList.add(widget.list[i].id);
-                }
-              }
-              if (widget.list.isNotEmpty && widget.list[0] is Item) {
-                widget.store.storeItemList = idList;
-                Storage.saveStore(widget.store);
-              }
-            },
-          );
+          if (newIndex == cards.length) {
+            newIndex -= 1;
+          }
+          if (oldIndex < newIndex) {
+            newIndex -= 1;
+          }
+          final item = widget.list.removeAt(oldIndex);
+          widget.list.insert(newIndex, item);
+          List<int> idList = [];
+          for (int i = 0; i < widget.list.length; i++) {
+            if (widget.list[i] is Store) {
+              (widget.list[i] as Store).order = i;
+              Storage.saveStore(widget.list[i]);
+            } else if (widget.list[i] is Item) {
+              idList.add(widget.list[i].id);
+            }
+          }
+          if (widget.list.isNotEmpty && widget.list[0] is Item) {
+            widget.store.storeItemList = idList;
+            Storage.saveStore(widget.store);
+          }
+          setState(() {});
         }
       },
       children: [
         for (int index = 0; index < cards.length - 1; index++) cards[index],
         GestureDetector(
+          excludeFromSemantics: true,
           key: const Key('emptyCard'),
           onLongPress: () {},
           child: cards.last,
